@@ -134,9 +134,8 @@ function createPlaygroundEmbed(
 		[0],
 	);
 	const selection = getSelectionFromQuery(query);
-	const { startLine, startColumn, endLine, endColumn } = selection;
+	const { startLine, endLine } = selection;
 	const startChar = cumulativeLineLengths[startLine ?? 0];
-	const cll = cumulativeLineLengths;
 	// This is calculated more often than necessary to avoid some absolutely
 	// hideous Prettier formatting if it is inlined at the single call site.
 	const cutoff = Math.min(startChar + DEFAULT_EMBED_LENGTH, unzipped.length);
@@ -158,15 +157,7 @@ function createPlaygroundEmbed(
 	const maxEnd = Math.min(prettyEnd, startChar + MAX_EMBED_LENGTH);
 	const extract = pretty.slice(startChar, maxEnd);
 
-	console.log('SELECTION:', selection);
-	console.log({ startChar, endChar });
-	console.log(
-		'LENGTH: unzipped, pretty, extract:',
-		unzipped.length,
-		pretty.length,
-		extract.length,
-	);
-	return embed.setDescription(makeCodeBlock(extract)); //.setTitle(`${extract.length} chars`);
+	return embed.setDescription(makeCodeBlock(extract));
 }
 
 async function shortenPlaygroundLink(url: string) {
@@ -185,31 +176,21 @@ async function shortenPlaygroundLink(url: string) {
 
 function getSelectionFromQuery(query: string) {
 	const params = new URLSearchParams(query);
-	const cursorPosition = {
-		line: getPosFromPGURLParam(params, 'pln'),
-		column: getPosFromPGURLParam(params, 'pc'),
-	};
-	const selectionPosition = {
-		line: getPosFromPGURLParam(params, 'ssl'),
-		column: getPosFromPGURLParam(params, 'ssc'),
-	};
+	const cursor = getPosFromPGURLParam(params, 'pln');
+	const selection = getPosFromPGURLParam(params, 'ssl');
 	// Sometimes the cursor is at the start of the selection, and other times
 	// it's at the end of the selection; we don't care which, only that the
 	// lower one always comes first.
-	const [start, end] = [cursorPosition, selectionPosition].sort(
-		(a, b) => (a.line ?? 0) - (b.line ?? 0),
-	);
-	return {
-		startLine: start.line,
-		startColumn: start.column,
-		endLine: end.line,
-		endColumn: end.column,
-	};
+	const [startLine, endLine] =
+		(cursor ?? 0) < (selection ?? 0)
+			? [cursor, selection]
+			: [selection, cursor];
+	return { startLine, endLine };
 }
 
 function getPosFromPGURLParam(params: URLSearchParams, name: string) {
 	const p = params.get(name);
 	if (p === null) return undefined;
 	const n = Number(p);
-	return n === NaN || n < 1 ? undefined : n - 1; // lines/chars are 1-indexed :(
+	return n === NaN || n < 1 ? undefined : n - 1; // 1-indexed :(
 }
